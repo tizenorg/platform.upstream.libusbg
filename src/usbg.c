@@ -628,6 +628,18 @@ struct gadget *usbg_create_gadget(struct state *s, char *name,
 	return g;
 }
 
+struct gadget_attrs *usbg_get_gadget_attrs(struct gadget *g,
+		struct gadget_attrs *g_attrs)
+{
+	if (g && g_attrs) {
+		*g_attrs = g->attrs;
+	} else {
+		g_attrs = NULL;
+	}
+
+	return g_attrs;
+}
+
 void usbg_set_gadget_attrs(struct gadget *g, struct gadget_attrs *g_attrs)
 {
 	if(!g || !g_attrs) {
@@ -691,6 +703,18 @@ void usbg_set_gadget_device_bcd_usb(struct gadget *g, uint16_t bcdUSB)
 {
 	g->attrs.bcdUSB = bcdUSB;
 	usbg_write_hex16(g->path, g->name, "bcdUSB", bcdUSB);
+}
+
+struct gadget_strs *usbg_get_gadget_strs(struct gadget *g,
+		struct gadget_strs *g_strs)
+{
+	if (g && g_strs) {
+		*g_strs = g->strs;
+	} else {
+		g_strs = NULL;
+	}
+
+	return g_strs;
 }
 
 void usbg_set_gadget_strs(struct gadget *g, int lang,
