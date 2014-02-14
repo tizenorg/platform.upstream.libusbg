@@ -79,9 +79,9 @@ void show_function(usbg_function *f)
 	case F_EEM:
 	case F_RNDIS:
 		fprintf(stdout, "    dev_addr\t\t%s\n",
-				ether_ntoa(&f_attrs.net.dev_addr));
+			ether_ntoa(&f_attrs.net.dev_addr));
 		fprintf(stdout, "    host_addr\t\t%s\n",
-				ether_ntoa(&f_attrs.net.host_addr));
+			ether_ntoa(&f_attrs.net.host_addr));
 		fprintf(stdout, "    ifname\t\t%s\n", f_attrs.net.ifname);
 		fprintf(stdout, "    qmult\t\t%d\n", f_attrs.net.qmult);
 		break;
