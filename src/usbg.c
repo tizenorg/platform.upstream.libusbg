@@ -40,7 +40,34 @@ struct usbg_state
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
-	TAILQ_HEAD(ghead, gadget) gadgets;
+	TAILQ_HEAD(ghead, usbg_gadget) gadgets;
+};
+
+struct usbg_gadget
+{
+	char name[USBG_MAX_NAME_LENGTH];
+	char path[USBG_MAX_PATH_LENGTH];
+	char udc[USBG_MAX_STR_LENGTH];
+
+	struct gadget_attrs attrs;
+	struct gadget_strs strs;
+
+	TAILQ_ENTRY(usbg_gadget) gnode;
+	TAILQ_HEAD(chead, usbg_config) configs;
+	TAILQ_HEAD(fhead, function) functions;
+	usbg_state *parent;
+};
+
+struct usbg_config
+{
+	TAILQ_ENTRY(usbg_config) cnode;
+	TAILQ_HEAD(bhead, binding) bindings;
+	usbg_gadget *parent;
+
+	char name[USBG_MAX_NAME_LENGTH];
+	char path[USBG_MAX_PATH_LENGTH];
+	struct config_attrs attrs;
+	struct config_strs strs;
 };
 
 /**
@@ -262,7 +289,7 @@ static void usbg_parse_function_attrs(struct function *f)
 	}
 }
 
-static int usbg_parse_functions(char *path, struct gadget *g)
+static int usbg_parse_functions(char *path, usbg_gadget *g)
 {
 	struct function *f;
 	int i, n;
@@ -305,12 +332,12 @@ static void usbg_parse_config_strs(char *cpath, struct config_strs *c_attrs)
 	usbg_read_string(spath, "", "configuration", c_attrs->configuration);
 }
 
-static void usbg_parse_config_bindings(struct config *c)
+static void usbg_parse_config_bindings(usbg_config *c)
 {
 	int i, n;
 	struct dirent **dent;
 	char bpath[USBG_MAX_PATH_LENGTH];
-	struct gadget *g = c->parent;
+	usbg_gadget *g = c->parent;
 	struct binding *b;
 	struct function *f;
 
@@ -345,9 +372,9 @@ static void usbg_parse_config_bindings(struct config *c)
 	free(dent);
 }
 
-static int usbg_parse_configs(char *path, struct gadget *g)
+static int usbg_parse_configs(char *path, usbg_gadget *g)
 {
-	struct config *c;
+	usbg_config *c;
 	int i, n;
 	struct dirent **dent;
 	char cpath[USBG_MAX_PATH_LENGTH];
@@ -358,7 +385,7 @@ static int usbg_parse_configs(char *path, struct gadget *g)
 
 	n = scandir(cpath, &dent, file_select, alphasort);
 	for (i=0; i < n; i++) {
-		c = malloc(sizeof(struct config));
+		c = malloc(sizeof(usbg_config));
 		c->parent = g;
 		strcpy(c->name, dent[i]->d_name);
 		strcpy(c->path, cpath);
@@ -402,7 +429,7 @@ static void usbg_parse_strings(char *path, char *name, struct gadget_strs *g_str
 
 static int usbg_parse_gadgets(char *path, usbg_state *s)
 {
-	struct gadget *g;
+	usbg_gadget *g;
 	int i, n;
 	struct dirent **dent;
 
@@ -410,7 +437,7 @@ static int usbg_parse_gadgets(char *path, usbg_state *s)
 
 	n = scandir(path, &dent, file_select, alphasort);
 	for (i=0; i < n; i++) {
-		g = malloc(sizeof(struct gadget));
+		g = malloc(sizeof(usbg_gadget));
 		strcpy(g->name, dent[i]->d_name);
 		strcpy(g->path, s->path);
 		g->parent = s;
@@ -475,8 +502,8 @@ out:
 
 void usbg_cleanup(usbg_state *s)
 {
-	struct gadget *g;
-	struct config *c;
+	usbg_gadget *g;
+	usbg_config *c;
 	struct binding *b;
 	struct function *f;
 
@@ -514,9 +541,9 @@ char *usbg_get_configfs_path(usbg_state *s, char *buf, size_t len)
 	return s ? strncpy(buf, s->path, len): NULL;
 }
 
-struct gadget *usbg_get_gadget(usbg_state *s, const char *name)
+usbg_gadget *usbg_get_gadget(usbg_state *s, const char *name)
 {
-	struct gadget *g;
+	usbg_gadget *g;
 
 	TAILQ_FOREACH(g, &s->gadgets, gnode)
 		if (!strcmp(g->name, name))
@@ -525,7 +552,7 @@ struct gadget *usbg_get_gadget(usbg_state *s, const char *name)
 	return NULL;
 }
 
-struct function *usbg_get_function(struct gadget *g, const char *name)
+struct function *usbg_get_function(usbg_gadget *g, const char *name)
 {
 	struct function *f;
 
@@ -536,9 +563,9 @@ struct function *usbg_get_function(struct gadget *g, const char *name)
 	return NULL;
 }
 
-struct config *usbg_get_config(struct gadget *g, const char *name)
+usbg_config *usbg_get_config(usbg_gadget *g, const char *name)
 {
-	struct config *c;
+	usbg_config *c;
 
 	TAILQ_FOREACH(c, &g->configs, cnode)
 		if (!strcmp(c->name, name))
@@ -547,7 +574,7 @@ struct config *usbg_get_config(struct gadget *g, const char *name)
 	return NULL;
 }
 
-struct binding *usbg_get_binding(struct config *c, const char *name)
+struct binding *usbg_get_binding(usbg_config *c, const char *name)
 {
 	struct binding *b;
 
@@ -558,7 +585,7 @@ struct binding *usbg_get_binding(struct config *c, const char *name)
 	return NULL;
 }
 
-struct binding *usbg_get_link_binding(struct config *c, struct function *f)
+struct binding *usbg_get_link_binding(usbg_config *c, struct function *f)
 {
 	struct binding *b;
 
@@ -569,15 +596,15 @@ struct binding *usbg_get_link_binding(struct config *c, struct function *f)
 	return NULL;
 }
 
-static struct gadget *usbg_create_empty_gadget(usbg_state *s, char *name)
+static usbg_gadget *usbg_create_empty_gadget(usbg_state *s, char *name)
 {
 	char gpath[USBG_MAX_PATH_LENGTH];
-	struct gadget *g;
+	usbg_gadget *g;
 	int ret;
 
 	sprintf(gpath, "%s/%s", s->path, name);
 
-	g = malloc(sizeof(struct gadget));
+	g = malloc(sizeof(usbg_gadget));
 	if (!g) {
 		ERRORNO("allocating gadget\n");
 		return NULL;
@@ -604,10 +631,10 @@ static struct gadget *usbg_create_empty_gadget(usbg_state *s, char *name)
 
 
 
-struct gadget *usbg_create_gadget_vid_pid(usbg_state *s, char *name,
+usbg_gadget *usbg_create_gadget_vid_pid(usbg_state *s, char *name,
 		uint16_t idVendor, uint16_t idProduct)
 {
-	struct gadget *g;
+	usbg_gadget *g;
 
 	if (!s)
 		return NULL;
@@ -635,10 +662,10 @@ struct gadget *usbg_create_gadget_vid_pid(usbg_state *s, char *name,
 	return g;
 }
 
-struct gadget *usbg_create_gadget(usbg_state *s, char *name,
+usbg_gadget *usbg_create_gadget(usbg_state *s, char *name,
 		struct gadget_attrs *g_attrs, struct gadget_strs *g_strs)
 {
-	struct gadget *g;
+	usbg_gadget *g;
 
 	if (!s)
 		return NULL;
@@ -672,7 +699,7 @@ struct gadget *usbg_create_gadget(usbg_state *s, char *name,
 	return g;
 }
 
-struct gadget_attrs *usbg_get_gadget_attrs(struct gadget *g,
+struct gadget_attrs *usbg_get_gadget_attrs(usbg_gadget *g,
 		struct gadget_attrs *g_attrs)
 {
 	if (g && g_attrs) {
@@ -684,27 +711,27 @@ struct gadget_attrs *usbg_get_gadget_attrs(struct gadget *g,
 	return g_attrs;
 }
 
-size_t usbg_get_gadget_name_len(struct gadget *g)
+size_t usbg_get_gadget_name_len(usbg_gadget *g)
 {
 	return g ? strlen(g->name): -1;
 }
 
-char *usbg_get_gadget_name(struct gadget* g, char *buf, size_t len)
+char *usbg_get_gadget_name(usbg_gadget* g, char *buf, size_t len)
 {
 	return g ? strncpy(buf, g->name, len) : NULL;
 }
 
-size_t usbg_get_gadget_udc_len(struct gadget *g)
+size_t usbg_get_gadget_udc_len(usbg_gadget *g)
 {
 	return g ? strlen(g->udc): -1;
 }
 
-char *usbg_get_gadget_udc(struct gadget* g, char *buf, size_t len)
+char *usbg_get_gadget_udc(usbg_gadget* g, char *buf, size_t len)
 {
 	return g ? strncpy(buf, g->udc, len) : NULL;
 }
 
-void usbg_set_gadget_attrs(struct gadget *g, struct gadget_attrs *g_attrs)
+void usbg_set_gadget_attrs(usbg_gadget *g, struct gadget_attrs *g_attrs)
 {
 	if(!g || !g_attrs) {
 		return;
@@ -721,55 +748,55 @@ void usbg_set_gadget_attrs(struct gadget *g, struct gadget_attrs *g_attrs)
 	usbg_write_hex16(g->path, g->name, "bcdDevice", g_attrs->bcdDevice);
 }
 
-void usbg_set_gadget_vendor_id(struct gadget *g, uint16_t idVendor)
+void usbg_set_gadget_vendor_id(usbg_gadget *g, uint16_t idVendor)
 {
 	g->attrs.idVendor = idVendor;
 	usbg_write_hex16(g->path, g->name, "idVendor", idVendor);
 }
 
-void usbg_set_gadget_product_id(struct gadget *g, uint16_t idProduct)
+void usbg_set_gadget_product_id(usbg_gadget *g, uint16_t idProduct)
 {
 	g->attrs.idProduct = idProduct;
 	usbg_write_hex16(g->path, g->name, "idProduct", idProduct);
 }
 
-void usbg_set_gadget_device_class(struct gadget *g, uint8_t bDeviceClass)
+void usbg_set_gadget_device_class(usbg_gadget *g, uint8_t bDeviceClass)
 {
 	g->attrs.bDeviceClass = bDeviceClass;
 	usbg_write_hex8(g->path, g->name, "bDeviceClass", bDeviceClass);
 }
 
-void usbg_set_gadget_device_protocol(struct gadget *g, uint8_t bDeviceProtocol)
+void usbg_set_gadget_device_protocol(usbg_gadget *g, uint8_t bDeviceProtocol)
 {
 	g->attrs.bDeviceProtocol = bDeviceProtocol;
 	usbg_write_hex8(g->path, g->name, "bDeviceProtocol", bDeviceProtocol);
 }
 
-void usbg_set_gadget_device_subclass(struct gadget *g, uint8_t bDeviceSubClass)
+void usbg_set_gadget_device_subclass(usbg_gadget *g, uint8_t bDeviceSubClass)
 {
 	g->attrs.bDeviceSubClass = bDeviceSubClass;
 	usbg_write_hex8(g->path, g->name, "bDeviceSubClass", bDeviceSubClass);
 }
 
-void usbg_set_gadget_device_max_packet(struct gadget *g, uint8_t bMaxPacketSize0)
+void usbg_set_gadget_device_max_packet(usbg_gadget *g, uint8_t bMaxPacketSize0)
 {
 	g->attrs.bMaxPacketSize0 = bMaxPacketSize0;
 	usbg_write_hex8(g->path, g->name, "bMaxPacketSize0", bMaxPacketSize0);
 }
 
-void usbg_set_gadget_device_bcd_device(struct gadget *g, uint16_t bcdDevice)
+void usbg_set_gadget_device_bcd_device(usbg_gadget *g, uint16_t bcdDevice)
 {
 	g->attrs.bcdDevice = bcdDevice;
 	usbg_write_hex16(g->path, g->name, "bcdDevice", bcdDevice);
 }
 
-void usbg_set_gadget_device_bcd_usb(struct gadget *g, uint16_t bcdUSB)
+void usbg_set_gadget_device_bcd_usb(usbg_gadget *g, uint16_t bcdUSB)
 {
 	g->attrs.bcdUSB = bcdUSB;
 	usbg_write_hex16(g->path, g->name, "bcdUSB", bcdUSB);
 }
 
-struct gadget_strs *usbg_get_gadget_strs(struct gadget *g,
+struct gadget_strs *usbg_get_gadget_strs(usbg_gadget *g,
 		struct gadget_strs *g_strs)
 {
 	if (g && g_strs) {
@@ -781,7 +808,7 @@ struct gadget_strs *usbg_get_gadget_strs(struct gadget *g,
 	return g_strs;
 }
 
-void usbg_set_gadget_strs(struct gadget *g, int lang,
+void usbg_set_gadget_strs(usbg_gadget *g, int lang,
 		struct gadget_strs *g_strs)
 {
 	char path[USBG_MAX_PATH_LENGTH];
@@ -800,7 +827,7 @@ void usbg_set_gadget_strs(struct gadget *g, int lang,
 	usbg_write_string(path, "", "product", g_strs->str_prd);
 }
 
-void usbg_set_gadget_serial_number(struct gadget *g, int lang, char *serno)
+void usbg_set_gadget_serial_number(usbg_gadget *g, int lang, char *serno)
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
@@ -816,7 +843,7 @@ void usbg_set_gadget_serial_number(struct gadget *g, int lang, char *serno)
 	usbg_write_string(path, "", "serialnumber", serno);
 }
 
-void usbg_set_gadget_manufacturer(struct gadget *g, int lang, char *mnf)
+void usbg_set_gadget_manufacturer(usbg_gadget *g, int lang, char *mnf)
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
@@ -832,7 +859,7 @@ void usbg_set_gadget_manufacturer(struct gadget *g, int lang, char *mnf)
 	usbg_write_string(path, "", "manufacturer", mnf);
 }
 
-void usbg_set_gadget_product(struct gadget *g, int lang, char *prd)
+void usbg_set_gadget_product(usbg_gadget *g, int lang, char *prd)
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
@@ -848,7 +875,7 @@ void usbg_set_gadget_product(struct gadget *g, int lang, char *prd)
 	usbg_write_string(path, "", "product", prd);
 }
 
-struct function *usbg_create_function(struct gadget *g, enum function_type type,
+struct function *usbg_create_function(usbg_gadget *g, enum function_type type,
 		char *instance, union attrs* f_attrs)
 {
 	char fpath[USBG_MAX_PATH_LENGTH];
@@ -899,11 +926,11 @@ struct function *usbg_create_function(struct gadget *g, enum function_type type,
 	return f;
 }
 
-struct config *usbg_create_config(struct gadget *g, char *name,
+usbg_config *usbg_create_config(usbg_gadget *g, char *name,
 		struct config_attrs *c_attrs, struct config_strs *c_strs)
 {
 	char cpath[USBG_MAX_PATH_LENGTH];
-	struct config *c;
+	usbg_config *c;
 	int ret;
 
 	if (!g)
@@ -920,7 +947,7 @@ struct config *usbg_create_config(struct gadget *g, char *name,
 
 	sprintf(cpath, "%s/%s/%s/%s", g->path, g->name, CONFIGS_DIR, name);
 
-	c = malloc(sizeof(struct config));
+	c = malloc(sizeof(usbg_config));
 	if (!c) {
 		ERRORNO("allocating configuration\n");
 		return NULL;
@@ -954,12 +981,12 @@ struct config *usbg_create_config(struct gadget *g, char *name,
 	return c;
 }
 
-size_t usbg_get_config_name_len(struct config *c)
+size_t usbg_get_config_name_len(usbg_config *c)
 {
 	return c ? strlen(c->name): -1;
 }
 
-char *usbg_get_config_name(struct config* c, char *buf, size_t len)
+char *usbg_get_config_name(usbg_config *c, char *buf, size_t len)
 {
 	return c ? strncpy(buf, c->name, len) : NULL;
 }
@@ -974,7 +1001,7 @@ char *usbg_get_function_name(struct function *f, char *buf, size_t len)
 	return f ? strncpy(buf, f->name, len) : NULL;
 }
 
-void usbg_set_config_attrs(struct config *c, struct config_attrs *c_attrs)
+void usbg_set_config_attrs(usbg_config *c, struct config_attrs *c_attrs)
 {
 	if(!c || !c_attrs) {
 		return;
@@ -986,7 +1013,7 @@ void usbg_set_config_attrs(struct config *c, struct config_attrs *c_attrs)
 	usbg_write_hex8(c->path, c->name, "bmAttributes", c_attrs->bmAttributes);
 }
 
-struct config_attrs *usbg_get_config_attrs(struct config *c,
+struct config_attrs *usbg_get_config_attrs(usbg_config *c,
 		struct config_attrs *c_attrs)
 {
 	if (c && c_attrs) {
@@ -998,19 +1025,19 @@ struct config_attrs *usbg_get_config_attrs(struct config *c,
 	return c_attrs;
 }
 
-void usbg_set_config_max_power(struct config *c, int bMaxPower)
+void usbg_set_config_max_power(usbg_config *c, int bMaxPower)
 {
 	c->attrs.bMaxPower = bMaxPower;
 	usbg_write_dec(c->path, c->name, "MaxPower", bMaxPower);
 }
 
-void usbg_set_config_bm_attrs(struct config *c, int bmAttributes)
+void usbg_set_config_bm_attrs(usbg_config *c, int bmAttributes)
 {
 	c->attrs.bmAttributes = bmAttributes;
 	usbg_write_hex8(c->path, c->name, "bmAttributes", bmAttributes);
 }
 
-struct config_strs *usbg_get_config_strs(struct config *c,
+struct config_strs *usbg_get_config_strs(usbg_config *c,
 		struct config_strs *c_strs)
 {
 	if (c && c_strs) {
@@ -1021,13 +1048,13 @@ struct config_strs *usbg_get_config_strs(struct config *c,
 	return c_strs;
 }
 
-void usbg_set_config_strs(struct config *c, int lang,
+void usbg_set_config_strs(usbg_config *c, int lang,
 		struct config_strs *c_strs)
 {
 	usbg_set_config_string(c, lang, c_strs->configuration);
 }
 
-void usbg_set_config_string(struct config *c, int lang, char *str)
+void usbg_set_config_string(usbg_config *c, int lang, char *str)
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
@@ -1043,7 +1070,7 @@ void usbg_set_config_string(struct config *c, int lang, char *str)
 	usbg_write_string(path, "", "configuration", str);
 }
 
-int usbg_add_config_function(struct config *c, char *name, struct function *f)
+int usbg_add_config_function(usbg_config *c, char *name, struct function *f)
 {
 	char bpath[USBG_MAX_PATH_LENGTH];
 	char fpath[USBG_MAX_PATH_LENGTH];
@@ -1110,7 +1137,7 @@ int usbg_get_udcs(struct dirent ***udc_list)
 	return scandir("/sys/class/udc", udc_list, file_select, alphasort);
 }
 
-void usbg_enable_gadget(struct gadget *g, char *udc)
+void usbg_enable_gadget(usbg_gadget *g, char *udc)
 {
 	char gudc[USBG_MAX_STR_LENGTH];
 	struct dirent **udc_list;
@@ -1131,7 +1158,7 @@ void usbg_enable_gadget(struct gadget *g, char *udc)
 	usbg_write_string(g->path, g->name, "UDC", gudc);
 }
 
-void usbg_disable_gadget(struct gadget *g)
+void usbg_disable_gadget(usbg_gadget *g)
 {
 	strcpy(g->udc, "");
 	usbg_write_string(g->path, g->name, "UDC", "");
@@ -1222,27 +1249,27 @@ void usbg_set_net_qmult(struct function *f, int qmult)
 	usbg_write_dec(f->path, f->name, "qmult", qmult);
 }
 
-struct gadget *usbg_get_first_gadget(usbg_state *s)
+usbg_gadget *usbg_get_first_gadget(usbg_state *s)
 {
 	return s ? TAILQ_FIRST(&s->gadgets) : NULL;
 }
 
-struct function *usbg_get_first_function(struct gadget *g)
+struct function *usbg_get_first_function(usbg_gadget *g)
 {
 	return g ? TAILQ_FIRST(&g->functions) : NULL;
 }
 
-struct config *usbg_get_first_config(struct gadget *g)
+usbg_config *usbg_get_first_config(usbg_gadget *g)
 {
 	return g ? TAILQ_FIRST(&g->configs) : NULL;
 }
 
-struct binding *usbg_get_first_binding(struct config *c)
+struct binding *usbg_get_first_binding(usbg_config *c)
 {
 	return c ? TAILQ_FIRST(&c->bindings) : NULL;
 }
 
-struct gadget *usbg_get_next_gadget(struct gadget *g)
+usbg_gadget *usbg_get_next_gadget(usbg_gadget *g)
 {
 	return g ? TAILQ_NEXT(g, gnode) : NULL;
 }
@@ -1252,7 +1279,7 @@ struct function *usbg_get_next_function(struct function *f)
 	return f ? TAILQ_NEXT(f, fnode) : NULL;
 }
 
-struct config *usbg_get_next_config(struct config *c)
+usbg_config *usbg_get_next_config(usbg_config *c)
 {
 	return c ? TAILQ_NEXT(c, cnode) : NULL;
 }

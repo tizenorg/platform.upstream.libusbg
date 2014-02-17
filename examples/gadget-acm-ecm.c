@@ -30,9 +30,9 @@
 int main(void)
 {
 	usbg_state *s;
-	struct gadget *g;
+	usbg_gadget *g;
 	struct function *f;
-	struct config *c;
+	usbg_config *c;
 	struct function *f_acm0, *f_acm1, *f_ecm;
 	int ret = -EINVAL;
 
