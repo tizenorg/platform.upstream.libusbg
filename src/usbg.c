@@ -49,8 +49,8 @@ struct usbg_gadget
 	char path[USBG_MAX_PATH_LENGTH];
 	char udc[USBG_MAX_STR_LENGTH];
 
-	struct gadget_attrs attrs;
-	struct gadget_strs strs;
+	usbg_gadget_attrs attrs;
+	usbg_gadget_strs strs;
 
 	TAILQ_ENTRY(usbg_gadget) gnode;
 	TAILQ_HEAD(chead, usbg_config) configs;
@@ -66,8 +66,8 @@ struct usbg_config
 
 	char name[USBG_MAX_NAME_LENGTH];
 	char path[USBG_MAX_PATH_LENGTH];
-	struct config_attrs attrs;
-	struct config_strs strs;
+	usbg_config_attrs attrs;
+	usbg_config_strs strs;
 };
 
 struct usbg_function
@@ -78,8 +78,8 @@ struct usbg_function
 	char name[USBG_MAX_NAME_LENGTH];
 	char path[USBG_MAX_PATH_LENGTH];
 
-	enum function_type type;
-	union attrs attr;
+	usbg_function_type type;
+	usbg_function_attrs attr;
 };
 
 struct usbg_binding
@@ -338,13 +338,13 @@ static int usbg_parse_functions(char *path, usbg_gadget *g)
 	return 0;
 }
 
-static void usbg_parse_config_attrs(char *cpath, struct config_attrs *c_attrs)
+static void usbg_parse_config_attrs(char *cpath, usbg_config_attrs *c_attrs)
 {
 	c_attrs->bMaxPower = usbg_read_dec(cpath, "", "MaxPower");
 	c_attrs->bmAttributes = usbg_read_hex(cpath, "", "bmAttributes");
 }
 
-static void usbg_parse_config_strs(char *cpath, struct config_strs *c_attrs)
+static void usbg_parse_config_strs(char *cpath, usbg_config_strs *c_attrs)
 {
 	/* Hardcoded to US English right now*/
 	int lang = LANG_US_ENG;
@@ -423,7 +423,7 @@ static int usbg_parse_configs(char *path, usbg_gadget *g)
 }
 
 static void usbg_parse_gadget_attrs(char *path, char *name,
-		struct gadget_attrs *g_attrs)
+		usbg_gadget_attrs *g_attrs)
 {
 	/* Actual attributes */
 	g_attrs->bcdUSB = (uint16_t)usbg_read_hex(path, name, "bcdUSB");
@@ -436,7 +436,7 @@ static void usbg_parse_gadget_attrs(char *path, char *name,
 	g_attrs->bcdDevice = (uint16_t)usbg_read_hex(path, name, "bcdDevice");
 }
 
-static void usbg_parse_strings(char *path, char *name, struct gadget_strs *g_strs)
+static void usbg_parse_strings(char *path, char *name, usbg_gadget_strs *g_strs)
 {
 	/* Strings - hardcoded to U.S. English only for now */
 	int lang = LANG_US_ENG;
@@ -685,7 +685,7 @@ usbg_gadget *usbg_create_gadget_vid_pid(usbg_state *s, char *name,
 }
 
 usbg_gadget *usbg_create_gadget(usbg_state *s, char *name,
-		struct gadget_attrs *g_attrs, struct gadget_strs *g_strs)
+		usbg_gadget_attrs *g_attrs, usbg_gadget_strs *g_strs)
 {
 	usbg_gadget *g;
 
@@ -721,8 +721,8 @@ usbg_gadget *usbg_create_gadget(usbg_state *s, char *name,
 	return g;
 }
 
-struct gadget_attrs *usbg_get_gadget_attrs(usbg_gadget *g,
-		struct gadget_attrs *g_attrs)
+usbg_gadget_attrs *usbg_get_gadget_attrs(usbg_gadget *g,
+		usbg_gadget_attrs *g_attrs)
 {
 	if (g && g_attrs) {
 		*g_attrs = g->attrs;
@@ -753,7 +753,7 @@ char *usbg_get_gadget_udc(usbg_gadget* g, char *buf, size_t len)
 	return g ? strncpy(buf, g->udc, len) : NULL;
 }
 
-void usbg_set_gadget_attrs(usbg_gadget *g, struct gadget_attrs *g_attrs)
+void usbg_set_gadget_attrs(usbg_gadget *g, usbg_gadget_attrs *g_attrs)
 {
 	if(!g || !g_attrs) {
 		return;
@@ -818,8 +818,8 @@ void usbg_set_gadget_device_bcd_usb(usbg_gadget *g, uint16_t bcdUSB)
 	usbg_write_hex16(g->path, g->name, "bcdUSB", bcdUSB);
 }
 
-struct gadget_strs *usbg_get_gadget_strs(usbg_gadget *g,
-		struct gadget_strs *g_strs)
+usbg_gadget_strs *usbg_get_gadget_strs(usbg_gadget *g,
+		usbg_gadget_strs *g_strs)
 {
 	if (g && g_strs) {
 		*g_strs = g->strs;
@@ -831,7 +831,7 @@ struct gadget_strs *usbg_get_gadget_strs(usbg_gadget *g,
 }
 
 void usbg_set_gadget_strs(usbg_gadget *g, int lang,
-		struct gadget_strs *g_strs)
+		usbg_gadget_strs *g_strs)
 {
 	char path[USBG_MAX_PATH_LENGTH];
 
@@ -897,8 +897,8 @@ void usbg_set_gadget_product(usbg_gadget *g, int lang, char *prd)
 	usbg_write_string(path, "", "product", prd);
 }
 
-usbg_function *usbg_create_function(usbg_gadget *g, enum function_type type,
-		char *instance, union attrs* f_attrs)
+usbg_function *usbg_create_function(usbg_gadget *g, usbg_function_type type,
+		char *instance, usbg_function_attrs *f_attrs)
 {
 	char fpath[USBG_MAX_PATH_LENGTH];
 	char name[USBG_MAX_STR_LENGTH];
@@ -949,7 +949,7 @@ usbg_function *usbg_create_function(usbg_gadget *g, enum function_type type,
 }
 
 usbg_config *usbg_create_config(usbg_gadget *g, char *name,
-		struct config_attrs *c_attrs, struct config_strs *c_strs)
+		usbg_config_attrs *c_attrs, usbg_config_strs *c_strs)
 {
 	char cpath[USBG_MAX_PATH_LENGTH];
 	usbg_config *c;
@@ -1023,7 +1023,7 @@ char *usbg_get_function_name(usbg_function *f, char *buf, size_t len)
 	return f ? strncpy(buf, f->name, len) : NULL;
 }
 
-void usbg_set_config_attrs(usbg_config *c, struct config_attrs *c_attrs)
+void usbg_set_config_attrs(usbg_config *c, usbg_config_attrs *c_attrs)
 {
 	if(!c || !c_attrs) {
 		return;
@@ -1035,8 +1035,8 @@ void usbg_set_config_attrs(usbg_config *c, struct config_attrs *c_attrs)
 	usbg_write_hex8(c->path, c->name, "bmAttributes", c_attrs->bmAttributes);
 }
 
-struct config_attrs *usbg_get_config_attrs(usbg_config *c,
-		struct config_attrs *c_attrs)
+usbg_config_attrs *usbg_get_config_attrs(usbg_config *c,
+		usbg_config_attrs *c_attrs)
 {
 	if (c && c_attrs) {
 		*c_attrs = c->attrs;
@@ -1059,8 +1059,8 @@ void usbg_set_config_bm_attrs(usbg_config *c, int bmAttributes)
 	usbg_write_hex8(c->path, c->name, "bmAttributes", bmAttributes);
 }
 
-struct config_strs *usbg_get_config_strs(usbg_config *c,
-		struct config_strs *c_strs)
+usbg_config_strs *usbg_get_config_strs(usbg_config *c,
+		usbg_config_strs *c_strs)
 {
 	if (c && c_strs) {
 		*c_strs = c->strs;
@@ -1071,7 +1071,7 @@ struct config_strs *usbg_get_config_strs(usbg_config *c,
 }
 
 void usbg_set_config_strs(usbg_config *c, int lang,
-		struct config_strs *c_strs)
+		usbg_config_strs *c_strs)
 {
 	usbg_set_config_string(c, lang, c_strs->configuration);
 }
@@ -1190,12 +1190,12 @@ void usbg_disable_gadget(usbg_gadget *g)
  * USB function-specific attribute configuration
  */
 
-enum function_type usbg_get_function_type(usbg_function *f)
+usbg_function_type usbg_get_function_type(usbg_function *f)
 {
 	return f->type;
 }
 
-union attrs *usbg_get_function_attrs(usbg_function *f, union attrs *f_attrs)
+usbg_function_attrs *usbg_get_function_attrs(usbg_function *f, usbg_function_attrs *f_attrs)
 {
 	if (f && f_attrs) {
 		*f_attrs = f->attr;
@@ -1206,7 +1206,7 @@ union attrs *usbg_get_function_attrs(usbg_function *f, union attrs *f_attrs)
 	return f_attrs;
 }
 
-void usbg_set_function_attrs(usbg_function *f, union attrs *f_attrs)
+void usbg_set_function_attrs(usbg_function *f, usbg_function_attrs *f_attrs)
 {
 	char *addr;
 
