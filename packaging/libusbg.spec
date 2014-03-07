@@ -63,5 +63,6 @@ make
 %manifest %{name}.manifest
 %{_bindir}/gadget-acm-ecm
 %{_bindir}/show-gadgets
+%{_bindir}/gadget-vid-pid-remove
 
 %changelog
