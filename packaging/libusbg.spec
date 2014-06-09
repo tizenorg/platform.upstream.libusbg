@@ -64,5 +64,6 @@ make
 %{_bindir}/gadget-acm-ecm
 %{_bindir}/show-gadgets
 %{_bindir}/gadget-vid-pid-remove
+%{_bindir}/gadget-ffs
 
 %changelog
